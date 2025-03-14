@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "../../../../lib/firebaseConfig";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import twilio from "twilio";
 import { parse } from "querystring"; // Parse Twilio webhook data
 
 // Twilio Credentials
-// Load environment variables
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
@@ -14,36 +13,41 @@ const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 const client = twilio(accountSid, authToken);
 
 export async function POST(req) {
-    try {
-        const body = await req.text();
-        const data = parse(body);
-        const { From, To } = data; // "To" is the Twilio number
+  try {
+    const body = await req.text(); 
+    const data = parse(body); 
+    const { From, CallStatus } = data; 
 
-        console.log("Incoming Call Data:", data);
+    console.log("Received Call Data:", data);
 
-        // ✅ Step 1: Fetch the Dentist's Phone Number from Firestore
-        const dentistsCollection = collection(db, "dentists");
-        const snapshot = await getDocs(dentistsCollection);
-        const dentists = snapshot.docs.map(doc => doc.data());
+    // ✅ Check if call was missed
+    if (CallStatus === "no-answer" || CallStatus === "completed") {
+      console.log("Missed Call Detected. Logging to Firestore...");
 
-        // Find the dentist associated with this Twilio number
-        const dentist = dentists.find(d => d.twilio_number === To);
+      await addDoc(collection(db, "missed_calls"), {
+        patient_number: From,
+        timestamp: new Date(),
+      });
 
-        if (!dentist) {
-            console.error("❌ Dentist not found for this number.");
-            return NextResponse.json({ error: "Dentist not found" }, { status: 404 });
-        }
-
-        console.log(`📞 Forwarding call to: ${dentist.phone_number}`);
-
-        // ✅ Step 2: Generate TwiML to Forward Call
-        const twiml = new twilio.twiml.VoiceResponse();
-        twiml.dial(dentist.phone_number); // Forward call to the dentist's real number
-
-        return new Response(twiml.toString(), { headers: { "Content-Type": "text/xml" } });
-
-    } catch (error) {
-        console.error("❌ Error processing call:", error);
-        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+      return NextResponse.json({ success: true, message: "Missed call logged!" });
     }
+
+    // ✅ Return a TwiML Response for voicemail
+    const twiml = new twilio.twiml.VoiceResponse();
+
+    // This here is very important to simulate ringing ⬇️
+    twiml.pause({ length: 20 }); // Simulate ringing before voicemail
+
+    twiml.say("Thank you for calling. Please leave a message after the beep.");
+    twiml.record({
+      maxLength: 30,
+      action: "https://YOUR-NGROK-URL/api/twilio/handle-recording" // Handle recorded messages
+    });
+
+    return new Response(twiml.toString(), { headers: { "Content-Type": "text/xml" } });
+
+  } catch (error) {
+    console.error("Error processing call:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
 }
