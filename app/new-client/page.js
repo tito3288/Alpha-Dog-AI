@@ -16,6 +16,15 @@ export default function AddClient() {
     follow_up_delay: 5,
   });
 
+    // ✅ Function to format phone number to E.164 (+1XXXXXXXXXX)
+    const formatPhoneNumber = (number) => {
+      let cleaned = number.replace(/\D/g, ""); // Remove non-numeric characters
+      if (!cleaned.startsWith("1")) {
+        cleaned = "1" + cleaned; // Add country code if missing (Assuming US)
+      }
+      return `+${cleaned}`;
+    };
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -23,7 +32,13 @@ export default function AddClient() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, "dentists"), formData);
+      const formattedPhoneNumber = formatPhoneNumber(formData.twilio_phone_number);
+
+      await addDoc(collection(db, "dentists"), {
+        ...formData,
+        twilio_phone_number: formattedPhoneNumber, // Store formatted phone number
+      });
+
       router.push("/dashboard"); // Redirect to dashboard after submission
     } catch (error) {
       console.error("Error adding client: ", error);
@@ -37,15 +52,6 @@ export default function AddClient() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
             type="text"
-            name="name"
-            placeholder="Dentist Name"
-            value={formData.name}
-            onChange={handleChange}
-            className="w-full p-2 border border-gray-300 rounded"
-            required
-          />
-          <input
-            type="text"
             name="clinic_name"
             placeholder="Clinic Name"
             value={formData.clinic_name}
@@ -55,9 +61,9 @@ export default function AddClient() {
           />
           <input
             type="tel"
-            name="phone_number"
-            placeholder="Clinic Phone Number"
-            value={formData.phone_number}
+            name="twilio_phone_number"
+            placeholder="Twilio Number for Dentist"
+            value={formData.twilio_phone_number}
             onChange={handleChange}
             className="w-full p-2 border border-gray-300 rounded"
             required

@@ -7,7 +7,7 @@ export async function POST(req) {
     try {
         const body = await req.text();
         const data = parse(body);
-        const { From, CallStatus, CallSid } = data;
+        const { From, CallStatus, CallSid, To } = data; // 🔹 "To" is the Twilio number receiving the call
 
         console.log("📞 Call Status Update Received:", data);
 
@@ -16,9 +16,12 @@ export async function POST(req) {
             console.log("📌 Logging final call status to Firestore...");
 
             await addDoc(collection(db, "missed_calls"), {
-                patient_number: From,
-                call_status: CallStatus,
-                call_sid: CallSid,
+                patient_number: From,   // Caller (Patient's Phone)
+                call_status: "missed", // Call status
+                call_sid: CallSid,      // Unique Twilio Call ID
+                twilio_phone_number: To, // 🔹 Store the Twilio number used
+                follow_up_status: "Pending", // ✅ Now tracking follow-up status
+                follow_up_type: "Not Assigned", // ✅ Default value
                 timestamp: new Date(),
             });
 

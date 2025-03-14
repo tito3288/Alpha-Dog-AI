@@ -7,47 +7,49 @@ import { parse } from "querystring"; // Parse Twilio webhook data
 // Twilio Credentials
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
 // Initialize Twilio
 const client = twilio(accountSid, authToken);
 
 export async function POST(req) {
-  try {
-    const body = await req.text(); 
-    const data = parse(body); 
-    const { From, CallStatus } = data; 
+    try {
+        const body = await req.text();
+        const data = parse(body);
+        const { From, To, CallStatus, CallSid } = data;
 
-    console.log("Received Call Data:", data);
+        console.log("Received Call Data:", data);
 
-    // ✅ Check if call was missed
-    if (CallStatus === "no-answer" || CallStatus === "completed") {
-      console.log("Missed Call Detected. Logging to Firestore...");
+        // ✅ Identify missed calls (no answer or voicemail)
+        if (CallStatus === "no-answer" || CallStatus === "busy" || CallStatus === "failed") {
+            console.log("Missed Call Detected. Logging to Firestore...");
 
-      await addDoc(collection(db, "missed_calls"), {
-        patient_number: From,
-        timestamp: new Date(),
-      });
+            await addDoc(collection(db, "missed_calls"), {
+                call_sid: CallSid,
+                patient_number: From,
+                call_status: "missed", // Explicitly marked as "missed"
+                dentist_phone_number: To,
+                follow_up_status: "Pending", // New field to track follow-up progress
 
-      return NextResponse.json({ success: true, message: "Missed call logged!" });
+                timestamp: new Date(),
+            });
+        }
+
+        // ✅ Return a TwiML Response for voicemail
+        const twiml = new twilio.twiml.VoiceResponse();
+
+        // Simulate ringing before voicemail
+        twiml.pause({ length: 20 });
+
+        twiml.say("Thank you for calling. Please leave a message after the beep.");
+        twiml.record({
+            maxLength: 30,
+            action: "https://YOUR-NGROK-URL/api/twilio/handle-recording",
+        });
+
+        return new Response(twiml.toString(), { headers: { "Content-Type": "text/xml" } });
+
+    } catch (error) {
+        console.error("Error processing call:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
-
-    // ✅ Return a TwiML Response for voicemail
-    const twiml = new twilio.twiml.VoiceResponse();
-
-    // This here is very important to simulate ringing ⬇️
-    twiml.pause({ length: 20 }); // Simulate ringing before voicemail
-
-    twiml.say("Thank you for calling. Please leave a message after the beep.");
-    twiml.record({
-      maxLength: 30,
-      action: "https://YOUR-NGROK-URL/api/twilio/handle-recording" // Handle recorded messages
-    });
-
-    return new Response(twiml.toString(), { headers: { "Content-Type": "text/xml" } });
-
-  } catch (error) {
-    console.error("Error processing call:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
-  }
 }
