@@ -48,7 +48,7 @@ export default function Dashboard() {
   
     try {
       const missedCallsRef = collection(db, "missed_calls");
-      const q = query(missedCallsRef, where("twilio_phone_number", "==", twilioPhoneNumber));
+      const q = query(missedCallsRef, where("dentist_phone_number", "==", twilioPhoneNumber));
       const querySnapshot = await getDocs(q);
   
       let calls = [];
