@@ -16,14 +16,20 @@ async function getMissedCallDocument(call_sid, retries = 5, delay = 2000) {
   console.log(
     `⏳ Initial wait before fetching missed call document (${call_sid})...`
   );
-  await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second buffer before retries start
+  await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second buffer
 
-  const missedCallRef = doc(db, "missed_calls", call_sid);
   for (let i = 0; i < retries; i++) {
-    const missedCallSnap = await getDoc(missedCallRef);
-    if (missedCallSnap.exists()) {
-      return missedCallSnap;
+    const missedCallQuery = query(
+      collection(db, "missed_calls"),
+      where("call_sid", "==", call_sid)
+    );
+    const missedCallSnap = await getDocs(missedCallQuery);
+
+    if (!missedCallSnap.empty) {
+      console.log(`✅ Missed call document found on attempt ${i + 1}`);
+      return missedCallSnap.docs[0]; // Return the first matched document
     }
+
     console.warn(
       `🔄 Retrying to fetch missed call document (${call_sid}), Attempt ${i + 1}`
     );
@@ -142,14 +148,42 @@ export async function POST(req) {
 
     // 🔹 Step 6: Update Firestore to Mark Follow-Up as Completed
     const missedCallSnap = await getMissedCallDocument(call_sid);
-
     if (!missedCallSnap || !missedCallSnap.exists()) {
       console.error(
         `❌ Error: Missed call document (${call_sid}) not found in Firestore after retries.`
       );
+
+      // 🔍 Direct fetch to log what's actually in Firestore at the time
+      const missedCallQuery = query(
+        collection(db, "missed_calls"),
+        where("call_sid", "==", call_sid)
+      );
+      const missedCallDocs = await getDocs(missedCallQuery);
+
+      if (!missedCallDocs.empty) {
+        const missedCallDoc = missedCallDocs.docs[0]; // Get the first matched document
+        const docId = missedCallDoc.id;
+
+        console.warn(
+          `⚠️ Fallback fetch succeeded. Document exists but was not found during retries.`
+        );
+
+        // ✅ Update Firestore with correct document ID
+        await updateDoc(doc(db, "missed_calls", docId), {
+          follow_up_status: "Completed",
+        });
+        console.log(
+          `✅ Firestore Updated for ${call_sid} using fallback fetch.`
+        );
+      } else {
+        console.warn(
+          "⚠️ Fallback fetch also failed. Document truly does not exist or is delayed."
+        );
+      }
     } else {
-      await updateDoc(doc(db, "missed_calls", call_sid), {
-        follow_up_status: "Completed"
+      const docId = missedCallSnap.id; // Get the actual Firestore document ID
+      await updateDoc(doc(db, "missed_calls", docId), {
+        follow_up_status: "Completed",
       });
       console.log(`✅ Firestore Updated for ${call_sid}`);
     }

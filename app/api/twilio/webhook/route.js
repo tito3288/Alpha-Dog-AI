@@ -18,7 +18,7 @@ export async function POST(req) {
     const { From, To, CallStatus, CallSid } = data;
 
     console.log("Received Call Data:", data);
-    console.log(`🟡 CallStatus Received: ${CallStatus}`); // <== ADD THIS
+    console.log(`🟡 CallStatus Received: ${CallStatus}`);
 
     // 🔹 Step 1: Retrieve the clinic_name dynamically from Firestore
     let clinicName = "Unknown Clinic"; // Default fallback
@@ -28,7 +28,7 @@ export async function POST(req) {
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
-      clinicName = querySnapshot.docs[0].data().clinic_name; // Get clinic_name
+      clinicName = querySnapshot.docs[0].data().clinic_name;
     } else {
       console.warn(`⚠️ No clinic found for Twilio number: ${To}`);
     }
@@ -49,7 +49,7 @@ export async function POST(req) {
         `🟢 Logging missed call for CallSid: ${CallSid}, Status: ${CallStatus}`
       );
 
-      await addDoc(collection(db, "missed_calls"), {
+      await setDoc(doc(db, "missed_calls", CallSid), {
         call_sid: CallSid,
         patient_number: From,
         call_status: "missed",
@@ -58,9 +58,12 @@ export async function POST(req) {
         follow_up_status: "Pending",
         timestamp: new Date(),
       });
+      console.log(
+        `✅ Missed call saved to Firestore with call_sid: ${CallSid}`
+      );
 
       // Small delay before calling follow-up
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // ✅ Call AI SMS API after logging the missed call
       console.log(
@@ -99,12 +102,9 @@ export async function POST(req) {
       console.log("📩 Follow-up API Response:", responseData);
     }
 
-    // ✅ Return a TwiML Response for voicemail
+    // ✅ Return a TwiML Response for voicemail (AFTER logging & follow-up trigger)
     const twiml = new twilio.twiml.VoiceResponse();
-
-    // Simulate ringing before voicemail
     twiml.pause({ length: 20 });
-
     twiml.say(
       "Thank you for calling. We missed your call, but we’ll follow up with a text message shortly to assist you. If you prefer not to receive messages, reply STOP to opt out. Please leave a message after the beep."
     );
