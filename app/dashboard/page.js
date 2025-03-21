@@ -5,7 +5,6 @@ import { db } from "../../lib/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import Link from "next/link";
 
-
 const formatPhoneNumber = (phoneNumber) => {
   if (!phoneNumber) return "";
   const cleaned = phoneNumber.replace(/\D/g, ""); // Remove non-numeric characters
@@ -45,17 +44,20 @@ export default function Dashboard() {
       console.error("Error: Twilio phone number is undefined.");
       return;
     }
-  
+
     try {
       const missedCallsRef = collection(db, "missed_calls");
-      const q = query(missedCallsRef, where("dentist_phone_number", "==", twilioPhoneNumber));
+      const q = query(
+        missedCallsRef,
+        where("dentist_phone_number", "==", twilioPhoneNumber)
+      );
       const querySnapshot = await getDocs(q);
-  
+
       let calls = [];
       querySnapshot.forEach((doc) => {
         calls.push(doc.data());
       });
-  
+
       setMissedCalls(calls);
       setSelectedDentist(twilioPhoneNumber);
     } catch (error) {
@@ -73,7 +75,10 @@ export default function Dashboard() {
         ) : (
           <ul className="space-y-2">
             {clients.map((client) => (
-              <li key={client.id} className="p-2 border rounded bg-gray-50 flex justify-between items-center">
+              <li
+                key={client.id}
+                className="p-2 border rounded bg-gray-50 flex justify-between items-center"
+              >
                 <span>{client.clinic_name}</span>
                 <button
                   onClick={() => fetchMissedCalls(client.twilio_phone_number)}
@@ -96,7 +101,9 @@ export default function Dashboard() {
       {/* Display Missed Calls Section */}
       {selectedDentist && (
         <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-lg mt-6">
-          <h2 className="text-xl font-bold mb-2">Missed Calls for {formatPhoneNumber(selectedDentist)}</h2>
+          <h2 className="text-xl font-bold mb-2">
+            Missed Calls for {formatPhoneNumber(selectedDentist)}
+          </h2>
 
           {missedCalls.length === 0 ? (
             <p>No missed calls found.</p>
@@ -104,11 +111,27 @@ export default function Dashboard() {
             <ul className="space-y-2">
               {missedCalls.map((call, index) => (
                 <li key={index} className="p-2 border rounded bg-gray-50">
-                  <p><strong>Patient Number:</strong> {formatPhoneNumber(call.patient_number)}</p>
-                  <p><strong>Status:</strong> {call.call_status}</p>
-                  <p><strong>Follow-Up Status:</strong> {call.follow_up_status || "Not Available"}</p> {/* ✅ New Line */}
-                  <p><strong>Follow-Up Type:</strong> {call.follow_up_type || "Not Assigned"}</p>  {/* ✅ New Line */}
-                  <p><strong>Time:</strong> {new Date(call.timestamp.seconds * 1000).toLocaleString()}</p>
+                  <p>
+                    <strong>Patient Number:</strong>{" "}
+                    {formatPhoneNumber(call.patient_number)}
+                  </p>
+                  <p>
+                    <strong>Status:</strong> {call.call_status}
+                  </p>
+                  <p>
+                    <strong>Follow-Up Status:</strong>{" "}
+                    {call.follow_up_status || "Not Available"}
+                  </p>{" "}
+                  {/* ✅ New Line */}
+                  <p>
+                    <strong>Follow-Up Type:</strong>{" "}
+                    {call.follow_up_type || "Text Message"}
+                  </p>{" "}
+                  {/* ✅ New Line */}
+                  <p>
+                    <strong>Time:</strong>{" "}
+                    {new Date(call.timestamp.seconds * 1000).toLocaleString()}
+                  </p>
                 </li>
               ))}
             </ul>

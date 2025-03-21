@@ -11,8 +11,9 @@ export default function AddClient() {
     name: "",
     clinic_name: "",
     phone_number: "",
+    booking_url: "",
     message_template:
-      "Hi [Patient Name], we missed your call! Need an appointment?",
+      "Hi, we missed your call! Need an appointment?",
     follow_up_delay: 5,
   });
 
@@ -33,12 +34,15 @@ export default function AddClient() {
     e.preventDefault();
     try {
       const formattedPhoneNumber = formatPhoneNumber(formData.twilio_phone_number);
-
+  
       await addDoc(collection(db, "dentists"), {
-        ...formData,
-        twilio_phone_number: formattedPhoneNumber, // Store formatted phone number
+        clinic_name: formData.clinic_name,
+        twilio_phone_number: formattedPhoneNumber,
+        booking_url: formData.booking_url, // ✅ Ensure Booking URL is included
+        message_template: formData.message_template,
+        follow_up_delay: formData.follow_up_delay,
       });
-
+  
       router.push("/dashboard"); // Redirect to dashboard after submission
     } catch (error) {
       console.error("Error adding client: ", error);
@@ -64,6 +68,15 @@ export default function AddClient() {
             name="twilio_phone_number"
             placeholder="Twilio Number for Dentist"
             value={formData.twilio_phone_number}
+            onChange={handleChange}
+            className="w-full p-2 border border-gray-300 rounded"
+            required
+          />
+          <input
+            type="url"
+            name="booking_url"
+            placeholder="Booking URL"
+            value={formData.booking_url}
             onChange={handleChange}
             className="w-full p-2 border border-gray-300 rounded"
             required
