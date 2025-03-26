@@ -102,14 +102,15 @@ export async function POST(req) {
           - Write a short and polite SMS to follow up on a missed call. 
           - Use only the clinic's name and do not include placeholders like '[Your Name]'. 
           - Ensure the message is natural, professional, and complete.
-          - Encourage the patient to call back to book an appointment.`,
+          - Encourage the patient to call back to book an appointment.
+          - Avoid overly apologetic language such as "sorry for the inconvenience" or "we apologize for..." — keep the tone confident and helpful.`,
         },
         {
           role: "user",
           content: `A patient called but the call was missed. Generate a complete follow-up SMS for them. 
-          - Make sure it does not contain placeholders like '[Your Name]' or any other non-dynamic text. 
+          - Do not include phrases like "we're sorry" or "we apologize."
+          - The message should be polite, professional, and informative.
           - The clinic name is ${clinic_name}. 
-          - The message should be polite and informative.
           - Encourage the patient to call back and schedule an appointment.`,
         },
       ],

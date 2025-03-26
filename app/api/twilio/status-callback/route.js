@@ -1,59 +1,76 @@
 import { NextResponse } from "next/server";
 import { db } from "../../../../lib/firebaseConfig";
-import { collection, addDoc, getDocs, query, where } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
+import twilio from "twilio";
 import { parse } from "querystring";
+
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = twilio(accountSid, authToken);
 
 export async function POST(req) {
   try {
     const body = await req.text();
     const data = parse(body);
-    const { From, CallStatus, CallSid, To, CallDuration } = data;
+
+    // We can also parse CallDuration if we want to treat short "completed" calls as missed
+    const { From, To, CallStatus, CallSid, CallDuration } = data;
 
     console.log("📞 Call Status Update Received:", data);
     console.log(`🟡 CallStatus in status-callback: ${CallStatus}`);
 
-    // ✅ Only process missed calls
-    if (
+    // 🔹 1) Retrieve the clinic name from Firestore
+    const dentistsRef = collection(db, "dentists");
+    const q = query(dentistsRef, where("twilio_phone_number", "==", To));
+    const querySnapshot = await getDocs(q);
+
+    let clinicName = "Unknown Clinic";
+    if (!querySnapshot.empty) {
+      const docData = querySnapshot.docs[0].data();
+      // If your doc uses "clinic_name", use that; or fallback to "name" if that's how it's stored
+      clinicName = docData.clinic_name ?? docData.name ?? "Unknown Clinic";
+    }
+    console.log(`🏥 Clinic Name Retrieved: ${clinicName}`);
+
+    // 🔹 2) Identify "missed" calls
+    // Also treat calls that are "completed" but under 30s as missed
+    const isMissed =
       ["no-answer", "busy", "failed"].includes(CallStatus.toLowerCase()) ||
-      (CallStatus.toLowerCase() === "completed" && CallDuration <= 30) // ✅ Treat voicemail as a missed call
-    ) {
+      (CallStatus.toLowerCase() === "completed" && Number(CallDuration) <= 30);
+
+    if (isMissed) {
       console.log(
         `🟢 This call qualifies as a missed call: ${CallSid}, Status: ${CallStatus}`
       );
 
-      // 🔹 Step 1: Retrieve the clinic_name dynamically from Firestore
-      let clinicName = "Unknown Clinic"; // Default fallback
-
-      const dentistsRef = collection(db, "dentists");
-      const q = query(dentistsRef, where("twilio_phone_number", "==", To));
-      const querySnapshot = await getDocs(q);
-
-      if (!querySnapshot.empty) {
-        clinicName = querySnapshot.docs[0].data().clinic_name;
-      } else {
-        console.warn(`⚠️ No clinic found for Twilio number: ${To}`);
-      }
-
-      console.log(`🏥 Clinic Name Retrieved: ${clinicName}`);
-
-      // ✅ Log missed call in Firestore
-      await addDoc(collection(db, "missed_calls"), {
+      // 🔹 3) Save the missed call to Firestore
+      await setDoc(doc(db, "missed_calls", CallSid), {
         call_sid: CallSid,
         patient_number: From,
         call_status: "missed",
         dentist_phone_number: To,
-        clinic_name: clinicName,
+        clinic_name: clinicName, // guaranteed not undefined
         follow_up_status: "Pending",
         timestamp: new Date(),
       });
+      console.log(
+        `✅ Missed call saved to Firestore with call_sid: ${CallSid}`
+      );
 
+      // 🔹 4) Trigger AI Follow-up SMS
       console.log(
         `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${CallSid}`
       );
 
-      // ✅ Trigger AI Follow-Up Message with Correct Clinic Name
       const response = await fetch(
-        "https://a648-2600-1008-a031-75a3-5d94-8007-8506-b728.ngrok-free.app/api/twilio/send-followup",
+        "https://d5d4-69-174-154-43.ngrok-free.app/api/twilio/send-followup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -61,13 +78,15 @@ export async function POST(req) {
             patient_number: From,
             twilio_phone_number: To,
             call_sid: CallSid,
-            clinic_name: clinicName, // ✅ Pass correct clinic name
+            clinic_name: clinicName,
           }),
         }
       );
 
       console.log(
-        `🔄 Fetch request to send-followup completed. Status: ${response.status} ${response.statusText}`
+        `🔄 Fetch request to send-followup completed. Status: ${
+          response.status
+        } ${response.statusText}`
       );
 
       if (!response.ok) {
@@ -84,7 +103,7 @@ export async function POST(req) {
       console.log("📩 Follow-up API Response:", responseData);
     }
 
-    return NextResponse.json({ success: true, message: "Call status logged!" });
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("❌ Error processing call status update:", error);
     return NextResponse.json(
