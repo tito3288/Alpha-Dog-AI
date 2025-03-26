@@ -148,6 +148,7 @@ export async function POST(req) {
     console.log(`📨 SMS Sent to ${patient_number}`);
 
     // 🔹 Step 6: Update Firestore to Mark Follow-Up as Completed
+    // Step 6: Update Firestore to Mark Follow-Up as Completed & store the AI message
     const missedCallSnap = await getMissedCallDocument(call_sid);
     if (!missedCallSnap || !missedCallSnap.exists()) {
       console.error(
@@ -172,6 +173,9 @@ export async function POST(req) {
         // ✅ Update Firestore with correct document ID
         await updateDoc(doc(db, "missed_calls", docId), {
           follow_up_status: "Completed",
+          ai_message: aiMessage, // <-- Add your AI message
+          ai_message_timestamp: new Date(), // <-- Timestamp
+          ai_message_status: "sent", // <-- Mark as sent
         });
         console.log(
           `✅ Firestore Updated for ${call_sid} using fallback fetch.`
@@ -185,6 +189,9 @@ export async function POST(req) {
       const docId = missedCallSnap.id; // Get the actual Firestore document ID
       await updateDoc(doc(db, "missed_calls", docId), {
         follow_up_status: "Completed",
+        ai_message: aiMessage, // <-- Add your AI message
+        ai_message_timestamp: new Date(), // <-- Timestamp
+        ai_message_status: "sent", // <-- Mark as sent
       });
       console.log(`✅ Firestore Updated for ${call_sid}`);
     }
