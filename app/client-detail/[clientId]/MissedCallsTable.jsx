@@ -36,6 +36,20 @@ export default function MissedCallsTable({ missedCalls }) {
     return date.toLocaleString();
   }
 
+  function getFollowUpBadge(call) {
+    const status = call.follow_up_status?.toLowerCase();
+    if (status === "pending") {
+      return <Badge className="bg-[#b3d334] text-[#2d5329]">Pending</Badge>;
+    } else if (status === "completed") {
+      return <Badge variant="outline">Completed</Badge>;
+    } else {
+      // For any other status, or if undefined, use secondary style
+      return (
+        <Badge variant="secondary">{call.follow_up_status || "Unknown"}</Badge>
+      );
+    }
+  }
+
   const toggleExpandRow = (callId) => {
     if (expandedCallId === callId) {
       setExpandedCallId(null);
@@ -134,7 +148,7 @@ export default function MissedCallsTable({ missedCalls }) {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleViewMessage(call)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="opacity-100 group-hover:opacity-100 transition-opacity"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
                           View Message

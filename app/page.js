@@ -1,9 +1,9 @@
-import Dashboard from "./dashboard/page";
+import NewDashboard from "./new-dashboard/page";
 
 export default function Home() {
   return (
     <div>
-      <Dashboard />
+      <NewDashboard />
     </div>
   );
 }

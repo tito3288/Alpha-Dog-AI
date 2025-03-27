@@ -129,10 +129,52 @@ export default function ClientDetailView({ clientId }) {
       </div>
 
       <Tabs defaultValue="missed-calls" className="w-full">
-        <TabsList>
-          <TabsTrigger value="missed-calls">Missed Calls</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsList className="bg-[#b3d334]/20">
+          <TabsTrigger
+            value="missed-calls"
+            className="
+              data-[state=active]:bg-[#b3d334]
+              data-[state=active]:text-[#2d5329]
+              data-[state=active]:shadow-sm
+              data-[state=inactive]:hover:bg-[#b3d334]/20
+              data-[state=inactive]:text-gray-600
+              px-3 py-2
+              rounded-md
+              transition-colors
+            "
+          >
+            Missed Calls
+          </TabsTrigger>
+          <TabsTrigger
+            value="analytics"
+            className="
+              data-[state=active]:bg-[#b3d334]
+              data-[state=active]:text-[#2d5329]
+              data-[state=active]:shadow-sm
+              data-[state=inactive]:hover:bg-[#b3d334]/20
+              data-[state=inactive]:text-gray-600
+              px-3 py-2
+              rounded-md
+              transition-colors
+            "
+          >
+            Analytics
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="
+              data-[state=active]:bg-[#b3d334]
+              data-[state=active]:text-[#2d5329]
+              data-[state=active]:shadow-sm
+              data-[state=inactive]:hover:bg-[#b3d334]/20
+              data-[state=inactive]:text-gray-600
+              px-3 py-2
+              rounded-md
+              transition-colors
+            "
+          >
+            Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="missed-calls" className="space-y-6 mt-6">

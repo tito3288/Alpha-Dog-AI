@@ -39,7 +39,10 @@ export default function ClientDashboard() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold">Dentist Clients</h2>
-        <Button onClick={() => setIsDialogOpen(true)}>
+        <Button
+          onClick={() => setIsDialogOpen(true)}
+          className="bg-[#b3d334] text-[#2d5329] hover:bg-gray-100 hover:text-[#2d5329]"
+        >
           <PlusCircle className="mr-2 h-4 w-4" />
           Add New Client
         </Button>

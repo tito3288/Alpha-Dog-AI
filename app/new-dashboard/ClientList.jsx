@@ -98,7 +98,7 @@ export default function ClientList({ clients }) {
                   <div className="text-sm font-medium mb-1">Services:</div>
                   <div className="flex flex-wrap gap-1">
                     {client.services.map((service) => (
-                      <Badge key={service} variant="secondary">
+                      <Badge key={service} variant="secondary" className="bg-[#b3d334]">
                         {service}
                       </Badge>
                     ))}
