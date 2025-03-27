@@ -3,7 +3,16 @@ import { db } from "../../../../lib/firebaseConfig";
 import OpenAI from "openai";
 import twilio from "twilio";
 import { parse } from "querystring";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  Timestamp,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 
 // Twilio setup
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -23,23 +32,22 @@ export async function POST(req) {
 
   console.log(`📥 Received message from ${from}: "${messageBody}"`);
 
-  // 🔍 Pull clinic name + booking URL from Firestore using "to" (Twilio number)
+  // 🔍 Pull clinic name + booking URL
   let clinic_name = "the dental office";
   let booking_url = "";
 
-  const q = query(
+  const dentistQuery = query(
     collection(db, "dentists"),
     where("twilio_phone_number", "==", to)
   );
-  const snapshot = await getDocs(q);
-
-  if (!snapshot.empty) {
-    const docData = snapshot.docs[0].data();
+  const dentistSnap = await getDocs(dentistQuery);
+  if (!dentistSnap.empty) {
+    const docData = dentistSnap.docs[0].data();
     clinic_name = docData.clinic_name ?? clinic_name;
     booking_url = docData.booking_url ?? "";
   }
 
-  // 🤖 Generate AI reply with dynamic booking logic
+  // 🤖 Generate AI reply
   try {
     const aiReply = await openai.chat.completions.create({
       model: "gpt-4",
@@ -69,6 +77,44 @@ export async function POST(req) {
       to: from,
       body: replyText,
     });
+
+    // 🔄 Find the related missed call doc to get the call_sid
+    const callQuery = query(
+      collection(db, "missed_calls"),
+      where("patient_number", "==", from),
+      where("dentist_phone_number", "==", to)
+    );
+    const callSnap = await getDocs(callQuery);
+    if (!callSnap.empty) {
+      const callDoc = callSnap.docs[0];
+      const call_sid = callDoc.id;
+
+      const convoRef = collection(
+        db,
+        "missed_calls",
+        call_sid,
+        "conversations"
+      );
+
+      // Store both user message and AI reply
+      await addDoc(convoRef, {
+        from: "user",
+        message: messageBody,
+        timestamp: Timestamp.now(),
+      });
+
+      await addDoc(convoRef, {
+        from: "ai",
+        message: replyText,
+        timestamp: Timestamp.now(),
+      });
+    } else {
+      console.warn("⚠️ No matching missed_calls doc found for", from, to);
+
+      console.warn(
+        "⚠️ No matching missed_calls doc found to log conversation."
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

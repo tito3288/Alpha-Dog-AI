@@ -70,7 +70,7 @@ export async function POST(req) {
       );
 
       const response = await fetch(
-        "https://5b2f-69-174-154-43.ngrok-free.app/api/twilio/send-followup",
+        "https://39f7-69-174-154-43.ngrok-free.app/api/twilio/send-followup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

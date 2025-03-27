@@ -18,20 +18,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { db } from "../../../lib/firebaseConfig";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function MissedCallsTable({ missedCalls }) {
   const [expandedCallId, setExpandedCallId] = useState(null);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [conversationMessages, setConversationMessages] = useState([]);
 
   function formatDate(timestamp) {
     if (!timestamp) return "";
-    // If it's a Firestore Timestamp object:
     if (timestamp.seconds) {
       const date = new Date(timestamp.seconds * 1000);
       return date.toLocaleString();
     }
-    // If it's a JS Date string or something else:
     const date = new Date(timestamp);
     return date.toLocaleString();
   }
@@ -43,28 +44,42 @@ export default function MissedCallsTable({ missedCalls }) {
     } else if (status === "completed") {
       return <Badge variant="outline">Completed</Badge>;
     } else {
-      // For any other status, or if undefined, use secondary style
       return (
         <Badge variant="secondary">{call.follow_up_status || "Unknown"}</Badge>
       );
     }
   }
 
-  const toggleExpandRow = (callId) => {
+  const toggleExpandRow = async (callId) => {
     if (expandedCallId === callId) {
       setExpandedCallId(null);
+      setConversationMessages([]);
     } else {
       setExpandedCallId(callId);
+      await fetchConversation(callId);
     }
   };
 
-  const handleViewMessage = (call) => {
-    // We assume the AI message is stored in call.ai_message, etc.
+  const fetchConversation = async (callId) => {
+    try {
+      const convoRef = collection(db, "missed_calls", callId, "conversations");
+      const convoSnap = await getDocs(convoRef);
+      const sortedMessages = convoSnap.docs
+        .map((doc) => doc.data())
+        .sort((a, b) => a.timestamp?.seconds - b.timestamp?.seconds);
+      setConversationMessages(sortedMessages);
+    } catch (error) {
+      console.error("❌ Failed to fetch conversation:", error);
+    }
+  };
+
+  const handleViewMessage = async (call) => {
     setSelectedMessage({
       message: call.ai_message,
       timestamp: call.ai_message_timestamp,
       status: call.ai_message_status,
     });
+    await fetchConversation(call.id);
     setIsDialogOpen(true);
   };
 
@@ -115,7 +130,6 @@ export default function MissedCallsTable({ missedCalls }) {
                         </Button>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {/* We only have patient_number, no patientName */}
                         <div className="text-sm">
                           {call.patient_number || "Unknown"}
                         </div>
@@ -125,19 +139,8 @@ export default function MissedCallsTable({ missedCalls }) {
                           {call.call_status || "Missed"}
                         </Badge>
                       </TableCell>
+                      <TableCell>{getFollowUpBadge(call)}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={
-                            call.follow_up_status?.toLowerCase() === "completed"
-                              ? "outline"
-                              : "secondary"
-                          }
-                        >
-                          {call.follow_up_status || "Pending"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {/* If you store follow_up_type, show it, otherwise "Text Message" */}
                         <Badge variant="outline">
                           {call.follow_up_type || "Text Message"}
                         </Badge>
@@ -148,7 +151,6 @@ export default function MissedCallsTable({ missedCalls }) {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleViewMessage(call)}
-                          className="opacity-100 group-hover:opacity-100 transition-opacity"
                         >
                           <MessageSquare className="h-4 w-4 mr-2" />
                           View Message
@@ -158,16 +160,40 @@ export default function MissedCallsTable({ missedCalls }) {
                     {expandedCallId === callId && (
                       <TableRow>
                         <TableCell colSpan={7} className="bg-muted/50 p-4">
-                          <div className="space-y-2">
+                          <div className="space-y-4">
                             <h4 className="font-medium">AI Message Sent:</h4>
                             <div className="bg-background p-3 rounded-md border text-sm">
                               {call.ai_message || "No message sent"}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              Sent at {formatDate(call.ai_message_timestamp)}
-                              {" • "}
+                              Sent at {formatDate(call.ai_message_timestamp)} •
                               Status: {call.ai_message_status || "unknown"}
                             </div>
+                            {conversationMessages.length > 0 && (
+                              <div className="pt-4">
+                                <h4 className="font-medium">Conversation:</h4>
+                                <div className="space-y-2 text-sm">
+                                  {conversationMessages.map((msg, i) => (
+                                    <div
+                                      key={i}
+                                      className={`p-2 rounded-md border w-fit max-w-[80%] ${
+                                        msg.from === "user"
+                                          ? "bg-white border-gray-300"
+                                          : "bg-blue-50 border-blue-300 ml-auto"
+                                      }`}
+                                    >
+                                      <div className="text-muted-foreground text-xs mb-1">
+                                        {msg.from === "user" ? "Patient" : "AI"}
+                                      </div>
+                                      <div>{msg.message}</div>
+                                      <div className="text-xs text-muted-foreground mt-1">
+                                        {formatDate(msg.timestamp)}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -181,9 +207,9 @@ export default function MissedCallsTable({ missedCalls }) {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>AI Message</DialogTitle>
+            <DialogTitle>AI Message + Conversation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-muted p-4 rounded-lg">
@@ -193,6 +219,31 @@ export default function MissedCallsTable({ missedCalls }) {
               <p>Sent: {formatDate(selectedMessage?.timestamp)}</p>
               <p>Status: {selectedMessage?.status}</p>
             </div>
+            {conversationMessages.length > 0 && (
+              <div className="pt-4">
+                <h4 className="font-medium mb-2">Conversation:</h4>
+                <div className="space-y-2 text-sm">
+                  {conversationMessages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`p-2 rounded-md border w-fit max-w-[80%] ${
+                        msg.from === "user"
+                          ? "bg-white border-gray-300"
+                          : "bg-blue-50 border-blue-300 ml-auto"
+                      }`}
+                    >
+                      <div className="text-muted-foreground text-xs mb-1">
+                        {msg.from === "user" ? "Patient" : "AI"}
+                      </div>
+                      <div>{msg.message}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {formatDate(msg.timestamp)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
