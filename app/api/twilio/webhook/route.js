@@ -71,7 +71,7 @@ export async function POST(req) {
       );
 
       const response = await fetch(
-        "https://d5d4-69-174-154-43.ngrok-free.app/api/twilio/send-followup",
+        "https://5b2f-69-174-154-43.ngrok-free.app/api/twilio/send-followup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -112,7 +112,7 @@ export async function POST(req) {
     twiml.record({
       maxLength: 30,
       action:
-        "https://d5d4-69-174-154-43.ngrok-free.app/api/twilio/handle-recording",
+        "https://5b2f-69-174-154-43.ngrok-free.app/api/twilio/handle-recording",
     });
 
     return new Response(twiml.toString(), {
