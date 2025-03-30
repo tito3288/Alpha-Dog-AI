@@ -71,7 +71,7 @@ export async function POST(req) {
       );
 
       const response = await fetch(
-        "https://alpha-dog-ai-sepia.vercel.app/api/twilio/send-followup",
+        "https://alpha-dog-ai-sepia.vercel.app//api/twilio/send-followup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -112,7 +112,7 @@ export async function POST(req) {
     twiml.record({
       maxLength: 30,
       action:
-        "https://alpha-dog-ai-sepia.vercel.app/api/twilio/handle-recording",
+        "https://alpha-dog-ai-sepia.vercel.app//api/twilio/handle-recording",
     });
 
     return new Response(twiml.toString(), {

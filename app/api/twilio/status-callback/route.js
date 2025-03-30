@@ -69,19 +69,20 @@ export async function POST(req) {
         `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${CallSid}`
       );
 
-      const response = await fetch(
-        "https://alpha-dog-ai-sepia.vercel.app/api/twilio/send-followup",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            patient_number: From,
-            twilio_phone_number: To,
-            call_sid: CallSid,
-            clinic_name: clinicName,
-          }),
-        }
-      );
+      const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000"; // fallback for local dev
+
+      const response = await fetch(`${baseUrl}/api/twilio/send-followup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_number: From,
+          twilio_phone_number: To,
+          call_sid: CallSid,
+          clinic_name: clinicName,
+        }),
+      });
 
       console.log(
         `🔄 Fetch request to send-followup completed. Status: ${
