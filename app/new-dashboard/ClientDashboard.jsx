@@ -3,14 +3,24 @@
 import { useState, useEffect } from "react";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../lib/firebaseConfig";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, LogOut } from "lucide-react";
 import ClientList from "./ClientList";
 import AddClientDialog from "./AddClientDialog";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/auth-context";
 
 export default function ClientDashboard() {
   const [clients, setClients] = useState([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "dentists"), (snapshot) => {
@@ -37,15 +47,28 @@ export default function ClientDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold">Dentist Clients</h2>
-        <Button
-          onClick={() => setIsDialogOpen(true)}
-          className="bg-[#b3d334] text-[#2d5329] hover:bg-gray-100 hover:text-[#2d5329]"
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Add New Client
-        </Button>
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        {" "}
+        <h2 className="text-2xl font-semibold hidden sm:block">
+          Dentist Clients
+        </h2>{" "}
+        <div className="flex gap-3">
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="border-primary/20 text-primary"
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Log Out
+          </Button>
+          <Button
+            onClick={() => setIsDialogOpen(true)}
+            className="bg-[#b3d334] hover:bg-[#418235] hover:text-white text-primary font-medium"
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add New Client
+          </Button>
+        </div>
       </div>
 
       <ClientList clients={clients} />

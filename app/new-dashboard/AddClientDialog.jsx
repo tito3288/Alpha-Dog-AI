@@ -223,7 +223,7 @@ export default function AddClientDialog({ open, onOpenChange }) {
             >
               Cancel
             </Button>
-            <Button className="bg-[#b3d334] text-black" type="submit">
+            <Button className="bg-[#b3d334] hover:bg-[#418235] hover:text-white text-black" type="submit">
               Add Client
             </Button>
           </DialogFooter>
