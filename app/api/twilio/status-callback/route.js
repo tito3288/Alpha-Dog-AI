@@ -70,7 +70,7 @@ export async function POST(req) {
       );
 
       const response = await fetch(
-        "https://9dc3-2600-1008-a031-7917-e9e7-77b3-c23e-66bd.ngrok-free.app/api/twilio/send-followup",
+        "https://alpha-dog-ai-sepia.vercel.app/api/twilio/send-followup",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
