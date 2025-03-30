@@ -105,7 +105,7 @@ export default function AddClientDialog({ open, onOpenChange }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Dentist Client</DialogTitle>
         </DialogHeader>
@@ -223,7 +223,9 @@ export default function AddClientDialog({ open, onOpenChange }) {
             >
               Cancel
             </Button>
-            <Button type="submit">Add Client</Button>
+            <Button className="bg-[#b3d334] text-black" type="submit">
+              Add Client
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

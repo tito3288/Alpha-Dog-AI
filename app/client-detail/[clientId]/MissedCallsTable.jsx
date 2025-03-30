@@ -215,12 +215,12 @@ export default function MissedCallsTable({ missedCalls }) {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>AI Message + Conversation</DialogTitle>
+            <DialogTitle>Alpha Dog AI Conversation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="bg-muted p-4 rounded-lg">
+            <div className="bg-[#b3d334] p-4 rounded-lg">
               <p>{selectedMessage?.message}</p>
             </div>
             <div className="text-sm text-muted-foreground">
@@ -236,12 +236,12 @@ export default function MissedCallsTable({ missedCalls }) {
                       key={i}
                       className={`p-2 rounded-md border w-fit max-w-[80%] ${
                         msg.from === "user"
-                          ? "bg-white border-gray-300"
-                          : "bg-blue-50 border-blue-300 ml-auto"
+                          ? "bg-muted"
+                          : "bg-[#b3d334] ml-auto"
                       }`}
                     >
                       <div className="text-muted-foreground text-xs mb-1">
-                        {msg.from === "user" ? "Patient" : "AI"}
+                        {msg.from === "user" ? "Patient" : "Alpha Dog AI"}
                       </div>
                       <div>{msg.message}</div>
                       <div className="text-xs text-muted-foreground mt-1">
