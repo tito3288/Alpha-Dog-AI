@@ -3,122 +3,205 @@ import { db } from "../../../../lib/firebaseConfig";
 import {
   collection,
   doc,
-  setDoc,
-  getDocs,
+  getDoc,
+  updateDoc,
   query,
   where,
+  getDocs,
 } from "firebase/firestore";
 import twilio from "twilio";
-import { parse } from "querystring";
+import OpenAI from "openai";
+
+async function getMissedCallDocument(call_sid, retries = 5, delay = 2000) {
+  console.log(
+    `⏳ Initial wait before fetching missed call document (${call_sid})...`
+  );
+  await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second buffer
+
+  for (let i = 0; i < retries; i++) {
+    const missedCallQuery = query(
+      collection(db, "missed_calls"),
+      where("call_sid", "==", call_sid)
+    );
+    const missedCallSnap = await getDocs(missedCallQuery);
+
+    if (!missedCallSnap.empty) {
+      console.log(`✅ Missed call document found on attempt ${i + 1}`);
+      return missedCallSnap.docs[0]; // Return the first matched document
+    }
+
+    console.warn(
+      `🔄 Retrying to fetch missed call document (${call_sid}), Attempt ${i + 1}`
+    );
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+  return null;
+}
 
 // Twilio Credentials
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+// OpenAI Credentials
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Initialize Twilio
 const client = twilio(accountSid, authToken);
 
-// Dynamic base URL (Vercel or localhost)
-const baseUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
-
 export async function POST(req) {
   try {
-    const body = await req.text();
-    const data = parse(body);
-    const { From, To, CallStatus, CallSid } = data;
-
-    console.log("Received Call Data:", data);
-    console.log(`🟡 CallStatus Received: ${CallStatus}`);
-
-    // 🔹 Step 1: Retrieve the clinic_name dynamically from Firestore
-    let clinicName = "Unknown Clinic"; // Default fallback
-
-    const dentistsRef = collection(db, "dentists");
-    const q = query(dentistsRef, where("twilio_phone_number", "==", To));
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      clinicName = querySnapshot.docs[0].data().clinic_name;
-    } else {
-      console.warn(`⚠️ No clinic found for Twilio number: ${To}`);
+    // Ensure the request has a valid JSON body
+    const textBody = await req.text();
+    if (!textBody) {
+      return NextResponse.json(
+        { error: "Empty request body" },
+        { status: 400 }
+      );
     }
 
-    console.log(`🔹 Associated Clinic: ${clinicName}`);
+    const data = JSON.parse(textBody);
+    const { patient_number, twilio_phone_number, call_sid, clinic_name } = data;
 
-    // ✅ Identify missed calls (no answer or voicemail)
-    if (
-      ["no-answer", "busy", "failed", "completed"].includes(
-        CallStatus.toLowerCase()
-      )
-    ) {
-      console.log(`🟢 This call qualifies as a missed call: ${CallSid}`);
-      console.log("Missed Call Detected. Logging to Firestore...");
-
-      await setDoc(doc(db, "missed_calls", CallSid), {
-        call_sid: CallSid,
-        patient_number: From,
-        call_status: "missed",
-        dentist_phone_number: To,
-        clinic_name: clinicName,
-        follow_up_status: "Pending",
-        timestamp: new Date(),
-      });
-
-      console.log(
-        `✅ Missed call saved to Firestore with call_sid: ${CallSid}`
+    if (!patient_number || !twilio_phone_number || !call_sid || !clinic_name) {
+      return NextResponse.json(
+        { error: "Missing required data" },
+        { status: 400 }
       );
-
-      // Small delay before calling follow-up
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      console.log(
-        `📩 Attempting to trigger AI Follow-up SMS for ${clinicName}`
-      );
-
-      const response = await fetch(`${baseUrl}/api/twilio/send-followup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_number: From,
-          twilio_phone_number: To,
-          call_sid: CallSid,
-          clinic_name: clinicName,
-        }),
-      });
-
-      if (!response.ok) {
-        console.error(
-          `❌ Error triggering send-followup: ${response.status} ${response.statusText}`
-        );
-        return NextResponse.json(
-          { error: "Failed to trigger follow-up" },
-          { status: 500 }
-        );
-      }
-
-      const responseData = await response.json();
-      console.log("📩 Follow-up API Response:", responseData);
     }
 
-    // ✅ Return a TwiML Response for voicemail (AFTER logging & follow-up trigger)
-    const twiml = new twilio.twiml.VoiceResponse();
-    twiml.pause({ length: 20 });
-    twiml.say(
-      "Thank you for calling. We missed your call, but we’ll follow up with a text message shortly to assist you. If you prefer not to receive messages, reply STOP to opt out. Please leave a message after the beep."
+    console.log(
+      `📌 Fetching booking URL and follow-up delay for: ${clinic_name}`
     );
 
-    twiml.record({
-      maxLength: 30,
-      action: `${baseUrl}/api/twilio/handle-recording`,
+    // 🔹 Step 1: Retrieve Dentist Data from Firestore
+    const q = query(
+      collection(db, "dentists"),
+      where("twilio_phone_number", "==", twilio_phone_number)
+    );
+    const querySnapshot = await getDocs(q);
+
+    let bookingUrl = "";
+    let followUpDelayInSeconds = 30; // Default delay of 30 seconds
+
+    if (!querySnapshot.empty) {
+      const dentistData = querySnapshot.docs[0].data();
+      bookingUrl = dentistData.booking_url || "";
+      followUpDelayInSeconds = (dentistData.follow_up_delay || 0) * 60; // Convert minutes to seconds
+    } else {
+      console.warn(`⚠️ No dentist data found for clinic: ${clinic_name}`);
+    }
+
+    // 🔹 Step 2: Generate AI Response using OpenAI
+    const aiResponse = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `You are a friendly receptionist for ${clinic_name}. 
+          - Write a short and polite SMS to follow up on a missed call. 
+          - Use only the clinic's name and do not include placeholders like '[Your Name]'. 
+          - Ensure the message is natural, professional, and complete.
+          - Encourage the patient to call back to book an appointment.
+          - Avoid overly apologetic language such as "sorry for the inconvenience" or "we apologize for..." — keep the tone confident and helpful.`,
+        },
+        {
+          role: "user",
+          content: `A patient called but the call was missed. Generate a complete follow-up SMS for them. 
+          - Do not include phrases like "we're sorry" or "we apologize."
+          - The message should be polite, professional, and informative.
+          - The clinic name is ${clinic_name}. 
+          - Encourage the patient to call back and schedule an appointment.`,
+        },
+      ],
+      max_tokens: 100,
     });
 
-    return new Response(twiml.toString(), {
-      headers: { "Content-Type": "text/xml" },
+    let aiMessage = aiResponse.choices[0].message.content.trim();
+
+    // 🔹 Step 3: Append Booking URL only once at the end of the message
+    if (bookingUrl) {
+      aiMessage += `\n\nBook online: ${bookingUrl}`;
+    }
+
+    console.log(`🤖 AI Message Generated: ${aiMessage}`);
+
+    // 🔹 Step 4: Introduce Dentist-Specific Follow-Up Delay
+    console.log(
+      `⏳ Waiting ${followUpDelayInSeconds} seconds before sending follow-up SMS...`
+    );
+    await new Promise((resolve) =>
+      setTimeout(resolve, followUpDelayInSeconds * 1000)
+    ); // Convert to milliseconds
+
+    console.log(
+      `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${call_sid}`
+    );
+
+    // 🔹 Step 5: Send SMS via Twilio
+    await client.messages.create({
+      body: aiMessage,
+      from: twilio_phone_number,
+      to: patient_number,
+    });
+
+    console.log(`📨 SMS Sent to ${patient_number}`);
+
+    // 🔹 Step 6: Update Firestore to Mark Follow-Up as Completed
+    // Step 6: Update Firestore to Mark Follow-Up as Completed & store the AI message
+    const missedCallSnap = await getMissedCallDocument(call_sid);
+    if (!missedCallSnap || !missedCallSnap.exists()) {
+      console.error(
+        `❌ Error: Missed call document (${call_sid}) not found in Firestore after retries.`
+      );
+
+      // 🔍 Direct fetch to log what's actually in Firestore at the time
+      const missedCallQuery = query(
+        collection(db, "missed_calls"),
+        where("call_sid", "==", call_sid)
+      );
+      const missedCallDocs = await getDocs(missedCallQuery);
+
+      if (!missedCallDocs.empty) {
+        const missedCallDoc = missedCallDocs.docs[0]; // Get the first matched document
+        const docId = missedCallDoc.id;
+
+        console.warn(
+          `⚠️ Fallback fetch succeeded. Document exists but was not found during retries.`
+        );
+
+        // ✅ Update Firestore with correct document ID
+        await updateDoc(doc(db, "missed_calls", docId), {
+          follow_up_status: "Completed",
+          ai_message: aiMessage, // <-- Add your AI message
+          ai_message_timestamp: new Date(), // <-- Timestamp
+          ai_message_status: "sent", // <-- Mark as sent
+        });
+        console.log(
+          `✅ Firestore Updated for ${call_sid} using fallback fetch.`
+        );
+      } else {
+        console.warn(
+          "⚠️ Fallback fetch also failed. Document truly does not exist or is delayed."
+        );
+      }
+    } else {
+      const docId = missedCallSnap.id; // Get the actual Firestore document ID
+      await updateDoc(doc(db, "missed_calls", docId), {
+        follow_up_status: "Completed",
+        ai_message: aiMessage, // <-- Add your AI message
+        ai_message_timestamp: new Date(), // <-- Timestamp
+        ai_message_status: "sent", // <-- Mark as sent
+      });
+      console.log(`✅ Firestore Updated for ${call_sid}`);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Follow-up SMS sent & Firestore updated!",
     });
   } catch (error) {
-    console.error("Error processing call:", error);
+    console.error("❌ Error processing AI follow-up:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

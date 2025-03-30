@@ -69,9 +69,7 @@ export async function POST(req) {
         `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${CallSid}`
       );
 
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000"; // fallback for local dev
+      const baseUrl = process.env.VERCEL_URL || "http://localhost:3000";
 
       const response = await fetch(`${baseUrl}/api/twilio/send-followup`, {
         method: "POST",
