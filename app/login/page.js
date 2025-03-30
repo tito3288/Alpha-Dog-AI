@@ -63,7 +63,7 @@ export default function LoginPage() {
               Login to Dashboard
             </CardTitle>
             <CardDescription className="text-center">
-              Enter your credentials to access Alpha Dog's dental marketing
+              Enter your credentials to access Alpha Dog&apos;s dental marketing
               dashboard
             </CardDescription>
           </CardHeader>

@@ -46,18 +46,20 @@ export default function ResetPasswordPage() {
               Reset Password
             </CardTitle>
             <CardDescription className="text-center">
-            Enter your credentials to access Alpha Dog's dental marketing
-            dashboard
-          </CardDescription>
+              Enter your credentials to access Alpha Dog&apos;s dental marketing
+              dashboard
+            </CardDescription>
           </CardHeader>
 
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               {status && (
-                <Alert 
+                <Alert
                   variant={status.type === "error" ? "destructive" : "default"}
                 >
-                  <AlertDescription className="text-[#b3d334]">{status.message}</AlertDescription>
+                  <AlertDescription className="text-[#b3d334]">
+                    {status.message}
+                  </AlertDescription>
                 </Alert>
               )}
               <div className="space-y-2">
