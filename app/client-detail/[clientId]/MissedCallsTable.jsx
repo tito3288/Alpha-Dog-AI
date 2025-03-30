@@ -66,7 +66,15 @@ export default function MissedCallsTable({ missedCalls }) {
       const convoSnap = await getDocs(convoRef);
       const sortedMessages = convoSnap.docs
         .map((doc) => doc.data())
-        .sort((a, b) => a.timestamp?.seconds - b.timestamp?.seconds);
+        .sort((a, b) => {
+          // Sort by timestamp first
+          const timeA = a.timestamp?.seconds || 0;
+          const timeB = b.timestamp?.seconds || 0;
+          if (timeA !== timeB) return timeA - timeB;
+
+          // If timestamps are equal, sort by sequence
+          return (a.sequence || 0) - (b.sequence || 0);
+        });
       setConversationMessages(sortedMessages);
     } catch (error) {
       console.error("❌ Failed to fetch conversation:", error);

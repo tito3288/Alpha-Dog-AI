@@ -78,12 +78,16 @@ export async function POST(req) {
       body: replyText,
     });
 
-    // 🔄 Find the related missed call doc to get the call_sid
+    // 🔄 Find the most recent missed call document for this phone pair
+    // 🔄 Find the most recent missed call document for this phone pair
     const callQuery = query(
       collection(db, "missed_calls"),
       where("patient_number", "==", from),
-      where("dentist_phone_number", "==", to)
+      where("dentist_phone_number", "==", to),
+      orderBy("timestamp", "desc"),
+      limit(1)
     );
+
     const callSnap = await getDocs(callQuery);
     if (!callSnap.empty) {
       const callDoc = callSnap.docs[0];
@@ -96,21 +100,36 @@ export async function POST(req) {
         "conversations"
       );
 
-      // Store both user message and AI reply
-      await addDoc(convoRef, {
-        from: "user",
-        message: messageBody,
-        timestamp: Timestamp.now(),
-      });
+      // ✅ Duplicate prevention logic
+      const recentMessagesQuery = query(
+        convoRef,
+        orderBy("timestamp", "desc"),
+        limit(1)
+      );
 
-      await addDoc(convoRef, {
-        from: "ai",
-        message: replyText,
-        timestamp: Timestamp.now(),
-      });
+      const recentMessagesSnap = await getDocs(recentMessagesQuery);
+      const lastMsg = recentMessagesSnap.docs[0]?.data()?.message;
+
+      if (lastMsg !== messageBody) {
+        const now = Timestamp.now();
+
+        await addDoc(convoRef, {
+          from: "user",
+          message: messageBody,
+          timestamp: now,
+          sequence: 1,
+        });
+
+        await addDoc(convoRef, {
+          from: "ai",
+          message: replyText,
+          timestamp: now,
+          sequence: 2,
+        });
+      } else {
+        console.log("🛑 Duplicate message detected. Skipping Firestore log.");
+      }
     } else {
-      console.warn("⚠️ No matching missed_calls doc found for", from, to);
-
       console.warn(
         "⚠️ No matching missed_calls doc found to log conversation."
       );
