@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import twilio from "twilio";
 import OpenAI from "openai";
+import { parse } from "querystring";
 
 async function getMissedCallDocument(call_sid, retries = 3, delay = 1000) {
   console.log(
@@ -27,7 +28,7 @@ async function getMissedCallDocument(call_sid, retries = 3, delay = 1000) {
 
     if (!missedCallSnap.empty) {
       console.log(`✅ Missed call document found on attempt ${i + 1}`);
-      return missedCallSnap.docs[0];
+      return missedCallSnap.docs[0]; // Return the first matched document
     }
 
     console.warn(
@@ -48,6 +49,15 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Initialize Twilio
 const client = twilio(accountSid, authToken);
+
+// Define baseUrl to ensure the protocol is included.
+const envUrl = process.env.VERCEL_URL;
+const baseUrl =
+  envUrl && envUrl.startsWith("http")
+    ? envUrl
+    : envUrl
+      ? `https://${envUrl}`
+      : "http://localhost:3000";
 
 export async function POST(req) {
   try {
@@ -82,7 +92,7 @@ export async function POST(req) {
     const querySnapshot = await getDocs(q);
 
     let bookingUrl = "";
-    let followUpDelayInSeconds = 1; // Default delay of 30 seconds
+    let followUpDelayInSeconds = 1; // Default delay of 1 second for testing
 
     if (!querySnapshot.empty) {
       const dentistData = querySnapshot.docs[0].data();
@@ -93,44 +103,47 @@ export async function POST(req) {
     }
 
     // 🔹 Step 2: Generate AI Response using OpenAI
-    const aiResponse = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
-        {
-          role: "system",
-          content: `You are a friendly receptionist for ${clinic_name}. 
-          - Write a short and polite SMS to follow up on a missed call. 
-          - Use only the clinic's name and do not include placeholders like '[Your Name]'. 
-          - Ensure the message is natural, professional, and complete.
-          - Encourage the patient to call back to book an appointment.
-          - Avoid overly apologetic language such as "sorry for the inconvenience" or "we apologize for..." — keep the tone confident and helpful.`,
-        },
-        {
-          role: "user",
-          content: `A patient called but the call was missed. Generate a complete follow-up SMS for them. 
-          - Do not include phrases like "we're sorry" or "we apologize."
-          - The message should be polite, professional, and informative.
-          - The clinic name is ${clinic_name}. 
-          - Encourage the patient to call back and schedule an appointment.`,
-        },
-      ],
-      max_tokens: 100,
-    });
-
-    let aiMessage = aiResponse.choices[0].message.content.trim();
+    let aiMessage = "";
+    try {
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "system",
+            content: `You are a friendly receptionist for ${clinic_name}. 
+            - Write a short and polite SMS to follow up on a missed call. 
+            - Use only the clinic's name and do not include placeholders like '[Your Name]'. 
+            - Ensure the message is natural, professional, and complete.
+            - Encourage the patient to call back to book an appointment.
+            - Avoid overly apologetic language such as "sorry for the inconvenience" or "we apologize for..." — keep the tone confident and helpful.`,
+          },
+          {
+            role: "user",
+            content: `A patient called but the call was missed. Generate a complete follow-up SMS for them. 
+            - Do not include phrases like "we're sorry" or "we apologize."
+            - The message should be polite, professional, and informative.
+            - The clinic name is ${clinic_name}. 
+            - Encourage the patient to call back and schedule an appointment.`,
+          },
+        ],
+        max_tokens: 100,
+      });
+      aiMessage = aiResponse.choices[0].message.content.trim();
+    } catch (error) {
+      console.error("❌ OpenAI error:", error);
+      throw error;
+    }
 
     // 🔹 Step 3: Append Booking URL only once at the end of the message
     if (bookingUrl) {
       aiMessage += `\n\nBook online: ${bookingUrl}`;
     }
-
     console.log(`🤖 AI Message Generated: ${aiMessage}`);
 
-    // 🔹 Step 4: Introduce Dentist-Specific Follow-Up Delay
+    // 🔹 Step 4: Introduce Dentist-Specific Follow-Up Delay (testing: 1 second delay)
     console.log(
       `⏳ Waiting ${followUpDelayInSeconds} seconds before sending follow-up SMS...`
     );
-    // For testing, use a 1-second delay:
     await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay for testing
 
     console.log(
@@ -143,38 +156,31 @@ export async function POST(req) {
       from: twilio_phone_number,
       to: patient_number,
     });
-
     console.log(`📨 SMS Sent to ${patient_number}`);
 
-    // 🔹 Step 6: Update Firestore to Mark Follow-Up as Completed
-    // Step 6: Update Firestore to Mark Follow-Up as Completed & store the AI message
+    // 🔹 Step 6: Update Firestore to Mark Follow-Up as Completed & store the AI message
     const missedCallSnap = await getMissedCallDocument(call_sid);
     if (!missedCallSnap || !missedCallSnap.exists()) {
       console.error(
         `❌ Error: Missed call document (${call_sid}) not found in Firestore after retries.`
       );
-
-      // 🔍 Direct fetch to log what's actually in Firestore at the time
+      // 🔍 Fallback: Direct fetch
       const missedCallQuery = query(
         collection(db, "missed_calls"),
         where("call_sid", "==", call_sid)
       );
       const missedCallDocs = await getDocs(missedCallQuery);
-
       if (!missedCallDocs.empty) {
-        const missedCallDoc = missedCallDocs.docs[0]; // Get the first matched document
+        const missedCallDoc = missedCallDocs.docs[0];
         const docId = missedCallDoc.id;
-
         console.warn(
           `⚠️ Fallback fetch succeeded. Document exists but was not found during retries.`
         );
-
-        // ✅ Update Firestore with correct document ID
         await updateDoc(doc(db, "missed_calls", docId), {
           follow_up_status: "Completed",
-          ai_message: aiMessage, // <-- Add your AI message
-          ai_message_timestamp: new Date(), // <-- Timestamp
-          ai_message_status: "sent", // <-- Mark as sent
+          ai_message: aiMessage,
+          ai_message_timestamp: new Date(),
+          ai_message_status: "sent",
         });
         console.log(
           `✅ Firestore Updated for ${call_sid} using fallback fetch.`
@@ -185,12 +191,12 @@ export async function POST(req) {
         );
       }
     } else {
-      const docId = missedCallSnap.id; // Get the actual Firestore document ID
+      const docId = missedCallSnap.id;
       await updateDoc(doc(db, "missed_calls", docId), {
         follow_up_status: "Completed",
-        ai_message: aiMessage, // <-- Add your AI message
-        ai_message_timestamp: new Date(), // <-- Timestamp
-        ai_message_status: "sent", // <-- Mark as sent
+        ai_message: aiMessage,
+        ai_message_timestamp: new Date(),
+        ai_message_status: "sent",
       });
       console.log(`✅ Firestore Updated for ${call_sid}`);
     }
