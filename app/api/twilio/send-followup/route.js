@@ -82,7 +82,7 @@ export async function POST(req) {
     const querySnapshot = await getDocs(q);
 
     let bookingUrl = "";
-    let followUpDelayInSeconds = 30; // Default delay of 30 seconds
+    let followUpDelayInSeconds = 1; // Default delay of 30 seconds
 
     if (!querySnapshot.empty) {
       const dentistData = querySnapshot.docs[0].data();
@@ -130,9 +130,8 @@ export async function POST(req) {
     console.log(
       `⏳ Waiting ${followUpDelayInSeconds} seconds before sending follow-up SMS...`
     );
-    await new Promise((resolve) =>
-      setTimeout(resolve, followUpDelayInSeconds * 1000)
-    ); // Convert to milliseconds
+    // For testing, use a 1-second delay:
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay for testing
 
     console.log(
       `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${call_sid}`
