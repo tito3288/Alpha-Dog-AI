@@ -19,7 +19,7 @@ const twilio_phone_number = process.env.TWILIO_PHONE_NUMBER;
 const client = twilio(accountSid, authToken);
 
 // 🔹 Use dynamic base URL from environment
-const baseUrl = process.env.VERCEL_URL || "http://localhost:3000";
+const baseUrl = "https://alpha-dog-ai-sepia.vercel.app";
 
 export async function POST(req) {
   try {

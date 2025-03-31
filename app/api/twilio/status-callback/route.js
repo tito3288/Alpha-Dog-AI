@@ -18,13 +18,7 @@ const twilio_phone_number = process.env.TWILIO_PHONE_NUMBER;
 const client = twilio(accountSid, authToken);
 
 // Define baseUrl so it always includes the protocol.
-const envUrl = process.env.VERCEL_URL;
-const baseUrl =
-  envUrl && envUrl.startsWith("http")
-    ? envUrl
-    : envUrl
-      ? `https://${envUrl}`
-      : "http://localhost:3000";
+const baseUrl = "https://alpha-dog-ai-sepia.vercel.app";
 
 export async function POST(req) {
   try {
