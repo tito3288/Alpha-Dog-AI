@@ -14,6 +14,8 @@ import { parse } from "querystring"; // Parse Twilio webhook data
 // Twilio Credentials
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
 const client = twilio(accountSid, authToken);
 
 // 🔹 Use dynamic base URL from environment
