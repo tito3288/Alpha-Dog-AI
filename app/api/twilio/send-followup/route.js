@@ -42,7 +42,7 @@ async function getMissedCallDocument(call_sid, retries = 3, delay = 1000) {
 // Twilio Credentials
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+const twilio_phone_number = process.env.TWILIO_PHONE_NUMBER;
 
 // OpenAI Credentials
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
