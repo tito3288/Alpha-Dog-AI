@@ -15,6 +15,15 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const client = twilio(accountSid, authToken);
 
+// Define baseUrl so it always includes the protocol.
+const envUrl = process.env.VERCEL_URL;
+const baseUrl =
+  envUrl && envUrl.startsWith("http")
+    ? envUrl
+    : envUrl
+      ? `https://${envUrl}`
+      : "http://localhost:3000";
+
 export async function POST(req) {
   try {
     const body = await req.text();
@@ -34,13 +43,11 @@ export async function POST(req) {
     let clinicName = "Unknown Clinic";
     if (!querySnapshot.empty) {
       const docData = querySnapshot.docs[0].data();
-      // If your doc uses "clinic_name", use that; or fallback to "name" if that's how it's stored
       clinicName = docData.clinic_name ?? docData.name ?? "Unknown Clinic";
     }
     console.log(`🏥 Clinic Name Retrieved: ${clinicName}`);
 
     // 🔹 2) Identify "missed" calls
-    // Also treat calls that are "completed" but under 30s as missed
     const isMissed =
       ["no-answer", "busy", "failed"].includes(CallStatus.toLowerCase()) ||
       (CallStatus.toLowerCase() === "completed" && Number(CallDuration) <= 30);
@@ -56,7 +63,7 @@ export async function POST(req) {
         patient_number: From,
         call_status: "missed",
         dentist_phone_number: To,
-        clinic_name: clinicName, // guaranteed not undefined
+        clinic_name: clinicName,
         follow_up_status: "Pending",
         timestamp: new Date(),
       });
@@ -69,8 +76,7 @@ export async function POST(req) {
         `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${CallSid}`
       );
 
-      const baseUrl = process.env.VERCEL_URL || "http://localhost:3000";
-
+      // Use the proper baseUrl here
       const response = await fetch(`${baseUrl}/api/twilio/send-followup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -83,9 +89,7 @@ export async function POST(req) {
       });
 
       console.log(
-        `🔄 Fetch request to send-followup completed. Status: ${
-          response.status
-        } ${response.statusText}`
+        `🔄 Fetch request to send-followup completed. Status: ${response.status} ${response.statusText}`
       );
 
       if (!response.ok) {
