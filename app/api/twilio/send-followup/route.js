@@ -12,11 +12,11 @@ import {
 import twilio from "twilio";
 import OpenAI from "openai";
 
-async function getMissedCallDocument(call_sid, retries = 5, delay = 2000) {
+async function getMissedCallDocument(call_sid, retries = 3, delay = 1000) {
   console.log(
-    `⏳ Initial wait before fetching missed call document (${call_sid})...`
+    `⏳ Waiting before fetching missed call document (${call_sid})...`
   );
-  await new Promise((resolve) => setTimeout(resolve, 3000)); // 3-second buffer
+  await new Promise((resolve) => setTimeout(resolve, 1000)); // 1-second buffer
 
   for (let i = 0; i < retries; i++) {
     const missedCallQuery = query(
@@ -27,7 +27,7 @@ async function getMissedCallDocument(call_sid, retries = 5, delay = 2000) {
 
     if (!missedCallSnap.empty) {
       console.log(`✅ Missed call document found on attempt ${i + 1}`);
-      return missedCallSnap.docs[0]; // Return the first matched document
+      return missedCallSnap.docs[0];
     }
 
     console.warn(
