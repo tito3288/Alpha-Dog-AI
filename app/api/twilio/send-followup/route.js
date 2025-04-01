@@ -61,6 +61,7 @@ const baseUrl =
 
 export async function POST(req) {
   try {
+    // Ensure the request has a valid JSON body
     const textBody = await req.text();
     if (!textBody) {
       return NextResponse.json(
@@ -91,13 +92,12 @@ export async function POST(req) {
     const querySnapshot = await getDocs(q);
 
     let bookingUrl = "";
-    let followUpDelayInSeconds = 0;
+    let followUpDelayInSeconds = 1; // Default delay of 1 second for testing
 
     if (!querySnapshot.empty) {
       const dentistData = querySnapshot.docs[0].data();
       bookingUrl = dentistData.booking_url || "";
-      // If follow_up_delay = 0.5, that means 30 seconds
-      followUpDelayInSeconds = (dentistData.follow_up_delay || 0) * 60;
+      followUpDelayInSeconds = (dentistData.follow_up_delay || 0) * 60; // Convert minutes to seconds
     } else {
       console.warn(`⚠️ No dentist data found for clinic: ${clinic_name}`);
     }
@@ -140,13 +140,11 @@ export async function POST(req) {
     }
     console.log(`🤖 AI Message Generated: ${aiMessage}`);
 
-    // 🔹 Step 4: Introduce Dentist-Specific Follow-Up Delay
+    // 🔹 Step 4: Introduce Dentist-Specific Follow-Up Delay (testing: 1 second delay)
     console.log(
       `⏳ Waiting ${followUpDelayInSeconds} seconds before sending follow-up SMS...`
     );
-    await new Promise((resolve) =>
-      setTimeout(resolve, followUpDelayInSeconds * 1000)
-    ); // e.g., 0.5 => 30 seconds
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // 1 second delay for testing
 
     console.log(
       `📩 Attempting to trigger AI Follow-up SMS for CallSid: ${call_sid}`
@@ -166,8 +164,32 @@ export async function POST(req) {
       console.error(
         `❌ Error: Missed call document (${call_sid}) not found in Firestore after retries.`
       );
-      // ...
-      // [Fallback logic remains the same]
+      // 🔍 Fallback: Direct fetch
+      const missedCallQuery = query(
+        collection(db, "missed_calls"),
+        where("call_sid", "==", call_sid)
+      );
+      const missedCallDocs = await getDocs(missedCallQuery);
+      if (!missedCallDocs.empty) {
+        const missedCallDoc = missedCallDocs.docs[0];
+        const docId = missedCallDoc.id;
+        console.warn(
+          `⚠️ Fallback fetch succeeded. Document exists but was not found during retries.`
+        );
+        await updateDoc(doc(db, "missed_calls", docId), {
+          follow_up_status: "Completed",
+          ai_message: aiMessage,
+          ai_message_timestamp: new Date(),
+          ai_message_status: "sent",
+        });
+        console.log(
+          `✅ Firestore Updated for ${call_sid} using fallback fetch.`
+        );
+      } else {
+        console.warn(
+          "⚠️ Fallback fetch also failed. Document truly does not exist or is delayed."
+        );
+      }
     } else {
       const docId = missedCallSnap.id;
       await updateDoc(doc(db, "missed_calls", docId), {
