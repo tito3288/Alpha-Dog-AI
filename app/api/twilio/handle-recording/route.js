@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { parse } from "querystring";
 import sgMail from "@sendgrid/mail";
+import { bucket } from "../../../../lib/firebaseAdmin";
+import axios from "axios";
+import { v4 as uuidv4 } from "uuid";
+import path from "path";
 
-// Set your SendGrid API Key from env
+// Set your SendGrid API Key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export async function POST(req) {
@@ -16,18 +20,40 @@ export async function POST(req) {
       return NextResponse.json({ error: "No recording URL" }, { status: 400 });
     }
 
-    // Construct the full recording URL (Twilio gives it without .mp3 extension sometimes)
-    const recordingLink = `${RecordingUrl}.mp3`;
+    // Fetch the .mp3 from Twilio
+    const recordingUrl = `${RecordingUrl}.mp3`;
+    const response = await axios.get(recordingUrl, {
+      responseType: "arraybuffer",
+    });
 
+    const buffer = Buffer.from(response.data);
+    const filename = `voicemails/${CallSid}-${uuidv4()}.mp3`;
+
+    // Upload to Firebase Storage
+    const file = bucket.file(filename);
+    await file.save(buffer, {
+      metadata: {
+        contentType: "audio/mpeg",
+        cacheControl: "public, max-age=31536000",
+      },
+    });
+
+    // Make it publicly accessible
+    await file.makePublic();
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
+
+    // Send email via SendGrid
     const msg = {
-      to: "bryan@alphadogagency.com",
-      from: "voicemail@alphadog-dental.com", // must be verified in SendGrid (or domain-authenticated)
+      to: process.env.EMAIL_TO,
+      from: "voicemail@alphadog-dental.com",
       subject: `📞 New Voicemail from ${From}`,
-      text: `You received a voicemail from ${From} to ${To}.\n\nListen to it here: ${recordingLink}\n\nCall SID: ${CallSid}`,
+      text: `You received a voicemail from ${From} to ${To}.\n\nListen to it here: ${publicUrl}\n\nCall SID: ${CallSid}`,
     };
 
     await sgMail.send(msg);
-    console.log("✅ Voicemail email sent via SendGrid");
+    console.log(
+      "✅ Voicemail email sent via SendGrid with Firebase Storage link"
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {
