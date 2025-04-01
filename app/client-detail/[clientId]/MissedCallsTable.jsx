@@ -37,6 +37,29 @@ export default function MissedCallsTable({ missedCalls }) {
     return date.toLocaleString();
   }
 
+  function formatPhoneNumberE164(numberString) {
+    if (!numberString) return "";
+
+    // Remove all non-digits
+    let digits = numberString.replace(/\D/g, "");
+
+    // If it's 11 digits starting with '1', remove the leading '1'
+    if (digits.length === 11 && digits.startsWith("1")) {
+      digits = digits.slice(1);
+    }
+
+    // If we now have 10 digits, format them as (XXX) XXX-XXXX
+    if (digits.length === 10) {
+      const area = digits.slice(0, 3);
+      const prefix = digits.slice(3, 6);
+      const line = digits.slice(6);
+      return `(${area}) ${prefix}-${line}`;
+    }
+
+    // Otherwise, return the original string (or some fallback)
+    return numberString;
+  }
+
   function getFollowUpBadge(call) {
     const status = call.follow_up_status?.toLowerCase();
     if (status === "pending") {
@@ -139,7 +162,9 @@ export default function MissedCallsTable({ missedCalls }) {
                       </TableCell>
                       <TableCell className="font-medium">
                         <div className="text-sm">
-                          {call.patient_number || "Unknown"}
+                          {call.patient_number
+                            ? formatPhoneNumberE164(call.patient_number)
+                            : "Unknown"}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -186,8 +211,8 @@ export default function MissedCallsTable({ missedCalls }) {
                                       key={i}
                                       className={`p-2 rounded-md border w-fit max-w-[80%] ${
                                         msg.from === "user"
-                                          ? "bg-white border-gray-300"
-                                          : "bg-blue-50 border-blue-300 ml-auto"
+                                          ? "bg-muted"
+                                          : "bg-[#b3d334] ml-auto"
                                       }`}
                                     >
                                       <div className="text-muted-foreground text-xs mb-1">
