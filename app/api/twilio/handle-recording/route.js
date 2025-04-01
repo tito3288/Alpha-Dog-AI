@@ -20,7 +20,7 @@ export async function POST(req) {
     const recordingLink = `${RecordingUrl}.mp3`;
 
     const msg = {
-      to: process.env.EMAIL_TO, // where to send the voicemail
+      to: "bryan@alphadogagency.com",
       from: "voicemail@alphadog-dental.com", // must be verified in SendGrid (or domain-authenticated)
       subject: `📞 New Voicemail from ${From}`,
       text: `You received a voicemail from ${From} to ${To}.\n\nListen to it here: ${recordingLink}\n\nCall SID: ${CallSid}`,
