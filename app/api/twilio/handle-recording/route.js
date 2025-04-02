@@ -21,9 +21,16 @@ export async function POST(req) {
     }
 
     // Fetch the .mp3 from Twilio
-    const recordingUrl = `${RecordingUrl}.mp3`;
+    const recordingUrl = RecordingUrl.endsWith(".mp3")
+      ? RecordingUrl
+      : `${RecordingUrl}.mp3`;
+
     const response = await axios.get(recordingUrl, {
       responseType: "arraybuffer",
+      auth: {
+        username: process.env.TWILIO_ACCOUNT_SID,
+        password: process.env.TWILIO_AUTH_TOKEN,
+      },
     });
 
     const buffer = Buffer.from(response.data);
