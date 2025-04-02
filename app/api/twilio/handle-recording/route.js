@@ -4,7 +4,6 @@ import sgMail from "@sendgrid/mail";
 import { bucket } from "../../../../lib/firebaseAdmin";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
-import path from "path";
 
 // Set your SendGrid API Key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -20,10 +19,8 @@ export async function POST(req) {
       return NextResponse.json({ error: "No recording URL" }, { status: 400 });
     }
 
-    // Fetch the .mp3 from Twilio
-    const recordingUrl = RecordingUrl.endsWith(".mp3")
-      ? RecordingUrl
-      : `${RecordingUrl}.mp3`;
+    // ✅ Use Twilio's original .wav URL (DO NOT append .mp3)
+    const recordingUrl = RecordingUrl;
 
     const response = await axios.get(recordingUrl, {
       responseType: "arraybuffer",
@@ -34,24 +31,23 @@ export async function POST(req) {
     });
 
     const buffer = Buffer.from(response.data);
-    const filename = `voicemails/${CallSid}-${uuidv4()}.mp3`;
+    const filename = `voicemails/${CallSid}-${uuidv4()}.wav`;
 
-    // Upload to Firebase Storage
+    // ✅ Save to Firebase with correct contentType
     const file = bucket.file(filename);
     await file.save(buffer, {
       metadata: {
-        contentType: "audio/mpeg",
+        contentType: "audio/wav",
         cacheControl: "public, max-age=31536000",
       },
     });
 
-    // Make it publicly accessible
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
 
     // Send email via SendGrid
     const msg = {
-      to: process.env.EMAIL_TO,
+      to: "bryan@alphadogagency.com",
       from: "voicemail@alphadog-dental.com",
       subject: `📞 New Voicemail from ${From}`,
       text: `You received a voicemail from ${From} to ${To}.\n\nListen to it here: ${publicUrl}\n\nCall SID: ${CallSid}`,
