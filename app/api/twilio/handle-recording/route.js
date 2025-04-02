@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { parse } from "querystring";
 import sgMail from "@sendgrid/mail";
-import { bucket, db } from "../../../../lib/firebaseAdmin"; // <- Make sure this is the admin SDK
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { bucket } from "../../../../lib/firebaseAdmin";
+import { getFirestore } from "firebase-admin/firestore";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 
@@ -25,11 +25,11 @@ export async function POST(req) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     // 🔍 Get the matching dentist by their Twilio number
-    const q = query(
-      collection(db, "dentists"),
-      where("twilio_phone_number", "==", To)
-    );
-    const snapshot = await getDocs(q);
+    const firestore = getFirestore();
+    const snapshot = await firestore
+      .collection("dentists")
+      .where("twilio_phone_number", "==", To)
+      .get();
 
     if (snapshot.empty) {
       console.warn("⚠️ No dentist found for Twilio number:", To);
