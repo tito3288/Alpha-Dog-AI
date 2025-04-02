@@ -19,7 +19,12 @@ export async function POST(req) {
       return NextResponse.json({ error: "No recording URL" }, { status: 400 });
     }
 
-    // ✅ Use Twilio's original .wav URL (DO NOT append .mp3)
+    console.log("🎙️ Twilio Recording URL:", RecordingUrl);
+
+    // Wait a bit in case Twilio hasn't finished processing the recording
+    await new Promise((resolve) => setTimeout(resolve, 2000)); // 2-second delay
+
+    // Use Twilio's original .wav URL directly
     const recordingUrl = RecordingUrl;
 
     const response = await axios.get(recordingUrl, {
@@ -33,7 +38,6 @@ export async function POST(req) {
     const buffer = Buffer.from(response.data);
     const filename = `voicemails/${CallSid}-${uuidv4()}.wav`;
 
-    // ✅ Save to Firebase with correct contentType
     const file = bucket.file(filename);
     await file.save(buffer, {
       metadata: {
@@ -45,7 +49,6 @@ export async function POST(req) {
     await file.makePublic();
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
 
-    // Send email via SendGrid
     const msg = {
       to: "bryan@alphadogagency.com",
       from: "voicemail@alphadog-dental.com",
@@ -61,6 +64,16 @@ export async function POST(req) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("❌ Error in handle-recording:", error);
+
+    // Optional: log more if it's an Axios error
+    if (axios.isAxiosError(error)) {
+      console.error("🔍 Axios Error Details:", {
+        url: error.config?.url,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
