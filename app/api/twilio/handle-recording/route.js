@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { parse } from "querystring";
 import sgMail from "@sendgrid/mail";
-import { bucket } from "../../../../lib/firebaseAdmin";
+import { bucket, db } from "../../../../lib/firebaseAdmin"; // <- Make sure this is the admin SDK
+import { collection, getDocs, query, where } from "firebase/firestore";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 
-// Set your SendGrid API Key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export async function POST(req) {
@@ -21,13 +21,26 @@ export async function POST(req) {
 
     console.log("🎙️ Twilio Recording URL:", RecordingUrl);
 
-    // Wait a bit in case Twilio hasn't finished processing the recording
-    await new Promise((resolve) => setTimeout(resolve, 2000)); // 2-second delay
+    // Wait a bit for Twilio to finish processing
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
-    // Use Twilio's original .wav URL directly
-    const recordingUrl = RecordingUrl;
+    // 🔍 Get the matching dentist by their Twilio number
+    const q = query(
+      collection(db, "dentists"),
+      where("twilio_phone_number", "==", To)
+    );
+    const snapshot = await getDocs(q);
 
-    const response = await axios.get(recordingUrl, {
+    if (snapshot.empty) {
+      console.warn("⚠️ No dentist found for Twilio number:", To);
+      return NextResponse.json({ error: "Dentist not found" }, { status: 404 });
+    }
+
+    const dentist = snapshot.docs[0].data();
+    const recipientEmail = dentist.email;
+
+    // Download the recording
+    const response = await axios.get(RecordingUrl, {
       responseType: "arraybuffer",
       auth: {
         username: process.env.TWILIO_ACCOUNT_SID,
@@ -50,22 +63,18 @@ export async function POST(req) {
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
 
     const msg = {
-      to: "bryan@alphadogagency.com",
+      to: recipientEmail,
       from: "voicemail@alphadog-dental.com",
       subject: `📞 New Voicemail from ${From}`,
       text: `You received a voicemail from ${From} to ${To}.\n\nListen to it here: ${publicUrl}\n\nCall SID: ${CallSid}`,
     };
 
     await sgMail.send(msg);
-    console.log(
-      "✅ Voicemail email sent via SendGrid with Firebase Storage link"
-    );
+    console.log("✅ Voicemail email sent to:", recipientEmail);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("❌ Error in handle-recording:", error);
-
-    // Optional: log more if it's an Axios error
     if (axios.isAxiosError(error)) {
       console.error("🔍 Axios Error Details:", {
         url: error.config?.url,
@@ -73,7 +82,6 @@ export async function POST(req) {
         data: error.response?.data,
       });
     }
-
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
