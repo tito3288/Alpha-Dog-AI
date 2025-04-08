@@ -92,7 +92,6 @@ export async function POST(req) {
     });
 
     // 🔄 Find the most recent missed call document for this phone pair
-    // 🔄 Find the most recent missed call document for this phone pair
     const callQuery = query(
       collection(db, "missed_calls"),
       where("patient_number", "==", from),

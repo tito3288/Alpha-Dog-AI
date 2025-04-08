@@ -12,30 +12,27 @@ export async function scrapeAndStoreDentistData(website_url, dentist_id) {
     // 🧼 Clean up full body text for pattern matching
     const rawText = $("body").text().replace(/\s+/g, " ").trim();
 
-    // 🕒 Extract hours from regex or visible header pattern
-    const hoursMatch = rawText.match(
-      /(Monday|Mon)\s*[-–]?\s*(Sunday|Sun)?.{0,80}?(AM|PM)/gi
-    );
-
     const cleanText = (str) =>
       str
         .replace(/\s+/g, " ")
         .replace(/[\n\t]+/g, "")
         .trim();
 
-    const hours = cleanText(
-      $(".qodef-e-title-text")
-        .filter((_, el) => {
-          const text = $(el).text().trim();
-          return (
-            text.match(/\d{1,2}:\d{2}/) &&
-            !text.toLowerCase().includes("confirm") &&
-            text.length < 100
-          );
-        })
-        .first()
-        .text()
-    );
+    // 🕒 Extract hours from visible header pattern
+    const hours =
+      cleanText(
+        $(".qodef-e-title-text")
+          .filter((_, el) => {
+            const text = $(el).text().trim();
+            return (
+              text.match(/\d{1,2}:\d{2}/) &&
+              !text.toLowerCase().includes("confirm") &&
+              text.length < 100
+            );
+          })
+          .first()
+          .text()
+      ) || "";
 
     // 📍 Extract address from maps links or typical classes
     const address =
@@ -53,20 +50,21 @@ export async function scrapeAndStoreDentistData(website_url, dentist_id) {
         )
         .first()
         .text()
-        .trim();
+        .trim() ||
+      "";
 
     // 🧾 Extract services from structured or fallback text
     const servicesMatch = rawText.match(/(Services:?)\s*([A-Z\s,&]+)/i);
-    const services = servicesMatch?.[2]?.trim() || "";
+    const servicesString = servicesMatch?.[2]?.trim() || "";
 
     // ✅ Split into array
     const servicesArray = (
-      services.match(/[A-Z][a-z]+(?:\s[A-Z][a-z]+)*/g) || []
+      servicesString.match(/[A-Z][a-z]+(?:\s[A-Z][a-z]+)*/g) || []
     )
       .map((s) => s.trim())
       .filter((s) => s.length > 2 && !s.toLowerCase().includes("service"));
 
-    // Update Firestore with scraped data
+    // ✅ Always update with full structure, even if values are empty
     await admin
       .firestore()
       .collection("dentists")
