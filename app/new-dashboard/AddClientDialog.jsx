@@ -45,7 +45,7 @@ export default function AddClientDialog({ open, onOpenChange }) {
     location: "",
     twilio_phone_number: "",
     booking_url: "",
-    follow_up_delay: 0.5, // Default follow-up delay in minutes
+    website_url: "",
     services: [],
   });
 
@@ -78,12 +78,25 @@ export default function AddClientDialog({ open, onOpenChange }) {
         location: formData.location,
         twilio_phone_number: formattedTwilioNumber,
         booking_url: formData.booking_url,
-        follow_up_delay: Number(formData.follow_up_delay),
+        website_url: formData.website_url,
         services: formData.services,
         status: "active",
       };
 
-      await addDoc(collection(db, "dentists"), clientData);
+      const docRef = await addDoc(collection(db, "dentists"), clientData);
+
+      // ✅ Invoke the scraper here
+      await fetch("/api/scrape-dentist-info", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          website_url: clientData.website_url,
+          dentist_id: docRef.id,
+        }),
+      });
+
       router.push("/new-dashboard");
 
       setFormData({
@@ -94,7 +107,7 @@ export default function AddClientDialog({ open, onOpenChange }) {
         location: "",
         twilio_phone_number: "",
         booking_url: "",
-        follow_up_delay: 5,
+        website_url: "",
         services: [],
       });
       onOpenChange(false);
@@ -164,7 +177,6 @@ export default function AddClientDialog({ open, onOpenChange }) {
                 required
               />
             </div>
-            {/* New Fields */}
             <div className="grid gap-2">
               <Label htmlFor="twilio_phone_number">Twilio Phone Number</Label>
               <Input
@@ -186,13 +198,11 @@ export default function AddClientDialog({ open, onOpenChange }) {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="follow_up_delay">Follow-Up Delay (minutes)</Label>
+              <Label htmlFor="website_url">Website URL</Label>
               <Input
-                id="follow_up_delay"
-                name="follow_up_delay"
-                type="number"
-                placeholder="Follow-Up Delay (minutes)"
-                value={formData.follow_up_delay}
+                id="website_url"
+                name="website_url"
+                value={formData.website_url}
                 onChange={handleChange}
                 required
               />
@@ -223,7 +233,10 @@ export default function AddClientDialog({ open, onOpenChange }) {
             >
               Cancel
             </Button>
-            <Button className="bg-[#b3d334] hover:bg-[#418235] hover:text-white text-black" type="submit">
+            <Button
+              className="bg-[#b3d334] hover:bg-[#418235] hover:text-white text-black"
+              type="submit"
+            >
               Add Client
             </Button>
           </DialogFooter>

@@ -35,6 +35,9 @@ export async function POST(req) {
   // 🔍 Pull clinic name + booking URL
   let clinic_name = "the dental office";
   let booking_url = "";
+  let services = "";
+  let hours = "";
+  let address = "";
 
   const dentistQuery = query(
     collection(db, "dentists"),
@@ -43,8 +46,14 @@ export async function POST(req) {
   const dentistSnap = await getDocs(dentistQuery);
   if (!dentistSnap.empty) {
     const docData = dentistSnap.docs[0].data();
-    clinic_name = docData.clinic_name ?? clinic_name;
+    clinic_name = docData.clinic_name ?? docData.name ?? clinic_name;
     booking_url = docData.booking_url ?? "";
+    const scraped = docData.scraped_data ?? {};
+    services = Array.isArray(scraped.services)
+      ? scraped.services.join(", ")
+      : scraped.services;
+    hours = scraped.hours ?? "";
+    address = scraped.address ?? "";
   }
 
   // 🤖 Generate AI reply
@@ -55,11 +64,15 @@ export async function POST(req) {
         {
           role: "system",
           content: `You are a friendly receptionist for ${clinic_name}. 
-          - Respond briefly and helpfully to patient SMS inquiries. 
-          - Do not apologize excessively. 
-          - Always encourage the patient to call the clinic or book online. 
-          - After 5 replies in a conversation, stop answering questions and instead reply: 
-            "To assist you further, please book online here: ${booking_url}"`,
+          Here is some info about the office:
+          
+          - Address: ${address || "not provided"}
+          - Hours: ${hours || "not available"}
+          - Services: ${services || "general dentistry"}
+          
+          Use this information to answer patient questions.
+          Always encourage the patient to call or book online: ${booking_url}.
+          After 5 replies, say: "To assist you further, please book online here: ${booking_url}"`,
         },
         {
           role: "user",
