@@ -26,6 +26,8 @@ const MARKETING_SERVICES = [
   { id: "local-seo", label: "Local SEO" },
 ];
 
+
+
 const formatPhoneNumber = (number) => {
   if (!number) return "";
   let cleaned = number.replace(/\D/g, "");
@@ -36,6 +38,10 @@ const formatPhoneNumber = (number) => {
 };
 
 export default function AddClientDialog({ open, onOpenChange }) {
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isScraping, setIsScraping] = useState(false); // optional
+
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: "",
@@ -65,6 +71,8 @@ export default function AddClientDialog({ open, onOpenChange }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
+
     try {
       const formattedTwilioNumber = formatPhoneNumber(
         formData.twilio_phone_number
@@ -85,20 +93,7 @@ export default function AddClientDialog({ open, onOpenChange }) {
 
       const docRef = await addDoc(collection(db, "dentists"), clientData);
 
-      // ✅ Invoke the scraper here
-      await fetch("/api/scrape-dentist-info", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          website_url: clientData.website_url,
-          dentist_id: docRef.id,
-        }),
-      });
-
-      router.push("/new-dashboard");
-
+      // ✅ Dismiss UI immediately after Firestore save
       setFormData({
         name: "",
         contactName: "",
@@ -110,9 +105,24 @@ export default function AddClientDialog({ open, onOpenChange }) {
         website_url: "",
         services: [],
       });
-      onOpenChange(false);
+      onOpenChange(false); // close modal
+      router.push("/new-dashboard");
+
+      // 🔁 Then run scraper in background (non-blocking)
+      setIsScraping(true);
+      await fetch("/api/scrape-dentist-info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          website_url: clientData.website_url,
+          dentist_id: docRef.id,
+        }),
+      });
     } catch (error) {
       console.error("Error adding client: ", error);
+    } finally {
+      setIsSubmitting(false);
+      setIsScraping(false);
     }
   };
 
